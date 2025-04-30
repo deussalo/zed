@@ -7,6 +7,10 @@ jobs:
   build:
     runs-on: windows-latest
 
+    defaults:
+      run:
+        shell: pwsh
+
     steps:
       - name: Checkout Zed code
         uses: actions/checkout@v3
@@ -17,22 +21,35 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: Install Build Tools
+      - name: Install Visual Studio Build Tools
         run: |
           choco install -y visualstudio2022buildtools visualstudio2022-workload-vctools
 
-      - name: Build Zed
-        run: cargo build --release --verbose
-
-      - name: Verify Build Output
-        run: |
-          if not exist target\release\zed.exe (
-            echo "Build failed: zed.exe not found" >&2
-            exit 1
-          )
-
-      - name: Upload executable
-        uses: actions/upload-artifact@v3
+      - name: Restore Cargo cache
+        uses: actions/cache@v3
         with:
-          name: zed-exe
-          path: target/release/zed.exe
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Zed
+        run: |
+          cargo build --release --verbose
+        working-directory: .  # adjust this if Zed source is in a subfolder
+
+      - name: List build outputs
+        run: Get-ChildItem -Recurse -Path target\release
+
+      - name: Check if zed.exe was built
+        run: |
+          if (!(Test-Path target\release\zed.exe)) {
+            Write-Error "❌ Build failed: zed.exe not found"
+            exit 1
+          }
+
+      - name: Upload zed.exe as artifact
+        uses:
