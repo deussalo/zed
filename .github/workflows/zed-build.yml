@@ -19,8 +19,15 @@ jobs:
       - name: Checkout Zed code
         uses: actions/checkout@v3
 
-      - name: Show system info
-        run: systeminfo
+      - name: Move repo to C:\src to prevent long paths
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\src
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\*" C:\src
+          Set-Location C:\src
+
+      - name: Enable long paths
+        run: |
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
 
       - name: Install Rust Nightly
         uses: actions-rs/toolchain@v1
@@ -28,36 +35,44 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: Install Visual Studio Build Tools (choco → winget fallback)
+      - name: Install Visual Studio Build Tools (silent installer)
         run: |
-          try {
-            choco install -y visualstudio2022buildtools visualstudio2022-workload-vctools
-          } catch {
-            Write-Warning "⚠️ Chocolatey failed, trying winget..."
-            winget install --id Microsoft.VisualStudio.2022.BuildTools --accept-package-agreements --accept-source-agreements --silent
-          }
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile vs_BuildTools.exe
+          Start-Process -Wait -FilePath .\vs_BuildTools.exe -ArgumentList `
+            "--quiet", `
+            "--wait", `
+            "--norestart", `
+            "--nocache", `
+            "--installPath", "C:\BuildTools", `
+            "--add", "Microsoft.VisualStudio.Workload.VCTools", `
+            "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", `
+            "--includeRecommended", `
+            "--includeOptional", `
+            "--acceptLicense"
 
       - name: Cache Cargo registry and target
         uses: actions/cache@v3
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            C:\Users\runneradmin\.cargo\registry
+            C:\Users\runneradmin\.cargo\git
+            C:\src\target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
       - name: Build Zed
+        working-directory: C:\src
         run: |
           cargo build --release --verbose
 
       - name: List build outputs
-        run: Get-ChildItem -Recurse -Path target\release
+        run: Get-ChildItem -Recurse -Path C:\src\target\release
 
       - name: Check if zed.exe was built
         run: |
-          if (!(Test-Path target\release\zed.exe)) {
+          if (!(Test-Path C:\src\target\release\zed.exe)) {
             Write-Error "❌ Build failed: zed.exe not found"
             exit 1
           }
@@ -66,4 +81,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zed-exe
-          path: target/release/zed.exe
+          path: C:\src\target\release\zed.exe
