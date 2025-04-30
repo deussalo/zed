@@ -15,17 +15,25 @@ jobs:
       - name: Checkout Zed code
         uses: actions/checkout@v3
 
+      - name: Show system info
+        run: systeminfo
+
       - name: Install Rust Nightly
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
 
-      - name: Install Visual Studio Build Tools
+      - name: Install Visual Studio Build Tools (choco → winget fallback)
         run: |
-          choco install -y visualstudio2022buildtools visualstudio2022-workload-vctools
+          try {
+            choco install -y visualstudio2022buildtools visualstudio2022-workload-vctools
+          } catch {
+            Write-Warning "⚠️ Chocolatey failed, trying winget..."
+            winget install --id Microsoft.VisualStudio.2022.BuildTools --accept-package-agreements --accept-source-agreements --silent
+          }
 
-      - name: Restore Cargo cache
+      - name: Cache Cargo registry and target
         uses: actions/cache@v3
         with:
           path: |
@@ -39,7 +47,6 @@ jobs:
       - name: Build Zed
         run: |
           cargo build --release --verbose
-        working-directory: .  # adjust this if Zed source is in a subfolder
 
       - name: List build outputs
         run: Get-ChildItem -Recurse -Path target\release
@@ -52,4 +59,7 @@ jobs:
           }
 
       - name: Upload zed.exe as artifact
-        uses:
+        uses: actions/upload-artifact@v3
+        with:
+          name: zed-exe
+          path: target/release/zed.exe
