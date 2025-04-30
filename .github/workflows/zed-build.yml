@@ -19,15 +19,17 @@ jobs:
       - name: Checkout Zed code
         uses: actions/checkout@v3
 
-      - name: Move repo to C:\src to prevent long paths
+      - name: Configure Git and Cargo for long paths
+        run: |
+          git config --system core.longpaths true
+          $env:CARGO_HOME = "C:\cargo"
+          echo "CARGO_HOME=C:\cargo" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Move repo to C:\src to prevent long working paths
         run: |
           New-Item -ItemType Directory -Force -Path C:\src
           Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\*" C:\src
           Set-Location C:\src
-
-      - name: Enable long paths
-        run: |
-          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
 
       - name: Install Rust Nightly
         uses: actions-rs/toolchain@v1
@@ -55,8 +57,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            C:\Users\runneradmin\.cargo\registry
-            C:\Users\runneradmin\.cargo\git
+            C:\cargo\registry
+            C:\cargo\git
             C:\src\target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
@@ -64,8 +66,7 @@ jobs:
 
       - name: Build Zed
         working-directory: C:\src
-        run: |
-          cargo build --release --verbose
+        run: cargo build --release --verbose
 
       - name: List build outputs
         run: Get-ChildItem -Recurse -Path C:\src\target\release
