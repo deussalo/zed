@@ -1,0 +1,34 @@
+name: Build Zed for Windows
+
+on:
+  workflow_dispatch:  # Allows manual trigger from the GitHub UI
+
+jobs:
+  build:
+    name: Compile Zed
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt
+
+      - name: Install dependencies
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          choco install -y visualstudio2022buildtools visualstudio2022-workload-vctools git
+
+      - name: Build Zed
+        run: cargo build --release
+
+      - name: Upload zed.exe
+        uses: actions/upload-artifact@v3
+        with:
+          name: zed-exe
+          path: target/release/zed.exe
