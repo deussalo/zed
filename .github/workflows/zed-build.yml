@@ -63,7 +63,7 @@ jobs:
           }
 
       - name: Upload zed.exe as artifact
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v4
         with:
           name: zed-exe
           path: target/release/zed.exe
